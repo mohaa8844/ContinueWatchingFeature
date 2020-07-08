@@ -25,8 +25,14 @@ namespace ContinueWatchingFeature
         {
             services.AddControllersWithViews();
 
-            services.AddDbContext<ContinueWatchingFeatureContext>(options =>
-                    options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
+            //services.AddTransient<MySqlConnection>(_ => new MySqlConnection(Configuration["ConnectionStrings:Default"]));
+
+            services.AddDbContextPool<ContinueWatchingFeatureContext>(
+      options => options.UseMySql(Configuration.GetConnectionString("DefaultConnection")
+   ));
+            services.AddMvc();
+            //services.AddDbContext<ContinueWatchingFeatureContext>(options =>
+            //        options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
