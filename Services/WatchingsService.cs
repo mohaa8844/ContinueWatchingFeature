@@ -21,6 +21,8 @@ namespace ContinueWatchingFeature.Services
             _mongoWatchings.Find(watching => true).ToList();
         public List<MongoWatching> Get(string id) =>
             _mongoWatchings.Find(watching => watching.User_id==id).ToList();
+        public List<MongoWatching> Get(string id, List<int> epsiodes) =>
+            _mongoWatchings.Find(x =>x.User_id==id && x.Type == 1 && epsiodes.Contains(x.Media_Id)).ToList();
 
         public MongoWatching Get(string user_id,int media_id,int type) =>
             _mongoWatchings.Find<MongoWatching>(watching => watching.User_id == user_id && watching.Media_Id==media_id && watching.Type==type).FirstOrDefault();

@@ -19,7 +19,7 @@ namespace ContinueWatchingFeature.Controllers
     {
         private readonly ContinueWatchingFeatureContext _context;
         private readonly WatchingsService _ws;
-        Vars Vars = new Vars();
+         
         public WatchingController(ContinueWatchingFeatureContext context,WatchingsService ws)
         {
             _context = context;
@@ -55,48 +55,25 @@ namespace ContinueWatchingFeature.Controllers
             Result res = null;
 
             String resultText;
-            //List<MongoWatching> temp = Vars.still_s;
 
-            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
-            List<MongoWatching> remove_list = Vars.writing ? Vars.removed_temp : Vars.removed;
-
-            MongoWatching ramQuery = list.Where(watching =>watching!=null && watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).SingleOrDefault();
-            if (ramQuery == null)
+            MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+            if (query == null)
             {
-                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
-                if (query != null)
-                {
-                    ramQuery = query;
-                }
-                else
-                {
-                    ramQuery = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
-                    if (ramQuery != null)
-                    {
-                        Vars.still_s.Add(ramQuery);
-                        resultText = "Added";
-                    }
-                    else
-                    {
-                        resultText = "Error occurred";
-                    }
-                }
-            }
+                query = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
 
+                _ws.Create(query);
+                resultText = "Added";
+                    
+            }
 
             if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
             {
-                remove_list.Add(ramQuery);
-                list.Remove(ramQuery);
-                _ws.Remove(ramQuery);
-                //var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
-                //if (q.Count() > 0)
-                //    _context.Still_Watchings.Remove(q.SingleOrDefault());
+                _ws.Remove(query);
                 resultText = "Completed";
             }
             else
             {
-                ramQuery.SeekPosition = newSeek.SeekPosition;
+                query.SeekPosition = newSeek.SeekPosition;
                 resultText = "Watching";
             }
 
@@ -111,18 +88,11 @@ namespace ContinueWatchingFeature.Controllers
         {
             String resultText = "";
 
-            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
 
-            MongoWatching ramQuery = list.Where(watching => watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).SingleOrDefault();
-            if (ramQuery == null)
-            {
-                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
-                if (query != null)
-                {
-                    ramQuery = query;
-                }
-            }
-            if (ramQuery != null)
+            MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+                
+            
+            if (query != null)
             {
                 resultText = "Watching";
             }
@@ -131,7 +101,7 @@ namespace ContinueWatchingFeature.Controllers
                 resultText = "Not Watching";
             }
 
-            WatchingResult watchingResult = new WatchingResult { Status = resultText, Watchings = ramQuery };
+            WatchingResult watchingResult = new WatchingResult { Status = resultText, Watchings = query };
             return watchingResult;
         }
 
@@ -147,45 +117,22 @@ namespace ContinueWatchingFeature.Controllers
                // thread.Start();
 
             }
-            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
-            List<MongoWatching> remove_list = Vars.writing ? Vars.removed_temp : Vars.removed;
-
-            List<MongoWatching> ramQuerys = list.Where(watching => watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).ToList();
-            MongoWatching ramQuery = null;
-            if (ramQuerys.Count==0)
+            MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+            if (query == null)
             {
-                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
-                if (query != null)
-                {
-                    ramQuery = query;
-                }
-                else
-                {
-                    ramQuery = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
-                    if (ramQuery != null)
-                    {
-                        list.Add(ramQuery);
-                        resultText = "Added";
-                    }
-                    else
-                    {
-                        resultText = "Error occurred";
-                    }
-                }
+                query = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
+                _ws.Create(query);
+                resultText = "Added";
+                   
+                
             }
-            else
-            {
-                ramQuery = ramQuerys[0];
-            }
-
+           
             if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
             {
-                remove_list.Add(ramQuery);
-                list.Remove(ramQuery);
                 var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
                 if (q.Count() > 0)
                     _context.Still_Watchings.Remove(q.SingleOrDefault());
-                _ws.Remove(ramQuery);
+                _ws.Remove(query);
                 resultText = "Completed";
             }
             else
@@ -193,7 +140,7 @@ namespace ContinueWatchingFeature.Controllers
                 resultText = "Watching";
             }
 
-           return new WatchingResult { Status = resultText, Watchings = ramQuery };
+           return new WatchingResult { Status = resultText, Watchings = query };
            
         }
 
@@ -205,7 +152,8 @@ namespace ContinueWatchingFeature.Controllers
             //To be used for inqueing about a series
             Result res = null;
             IEnumerable<Epsoide> epsiodes = _context.Epsoides.Where(x => x.Series_Id == seriesInquery.Series_Id);
-            var query = _context.Still_Watchings.Where(x => x.Type==1 &&  epsiodes.Any(u=>u.Id==x.Media_Id));
+            List<int> eps = epsiodes.Select(x => x.Id).ToList();
+            var query = _ws.Get(seriesInquery.User_Id.ToString(), eps);
 
             if (query.Count() > 0)
             {
