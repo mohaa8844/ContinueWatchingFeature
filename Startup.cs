@@ -10,6 +10,9 @@ using Microsoft.Extensions.Hosting;
 using ContinueWatchingFeature.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using ContinueWatchingFeature.Models;
+using Microsoft.Extensions.Options;
+using ContinueWatchingFeature.Services;
 
 namespace ContinueWatchingFeature
 {
@@ -24,15 +27,17 @@ namespace ContinueWatchingFeature
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllersWithViews();
+            services.Configure<watchingsDatabaseSettings>(Configuration.GetSection(nameof(watchingsDatabaseSettings)));
 
+            services.AddSingleton<IwatchingsDatabaseSettings>(sp =>sp.GetRequiredService<IOptions<watchingsDatabaseSettings>>().Value);
             //services.AddTransient<MySqlConnection>(_ => new MySqlConnection(Configuration["ConnectionStrings:Default"]));
 
-            services.AddDbContextPool<ContinueWatchingFeatureContext>(
-      options => options.UseMySql(Configuration.GetConnectionString("DefaultConnection")
-   ));
+            services.AddSingleton<WatchingsService>();
+
+            //services.AddDbContextPool<ContinueWatchingFeatureContext>(options => options.UseMySql(Configuration.GetConnectionString("DefaultConnection")));
             services.AddMvc();
-            //services.AddDbContext<ContinueWatchingFeatureContext>(options =>
-            //        options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
+            services.AddDbContext<ContinueWatchingFeatureContext>(options =>
+                    options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

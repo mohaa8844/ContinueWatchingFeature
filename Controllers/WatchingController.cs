@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ContinueWatchingFeature.Models;
 using Microsoft.EntityFrameworkCore;
+using ContinueWatchingFeature.Services;
+using System.Threading;
+using System.Security.Cryptography.X509Certificates;
 
 namespace ContinueWatchingFeature.Controllers
 {
@@ -15,62 +18,91 @@ namespace ContinueWatchingFeature.Controllers
     public class WatchingController : ControllerBase
     {
         private readonly ContinueWatchingFeatureContext _context;
-
-        public WatchingController(ContinueWatchingFeatureContext context)
+        private readonly WatchingsService _ws;
+        Vars Vars = new Vars();
+        public WatchingController(ContinueWatchingFeatureContext context,WatchingsService ws)
         {
             _context = context;
+            _ws = ws;
         }
 
-        [HttpGet("watchings")]
-        public async Task<ActionResult<IEnumerable<Still_Watching>>> Index()
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<MongoWatching>>> Index()
         {
-            return await _context.Still_Watchings.ToListAsync();
+            return _ws.Get();
+           // return await _context.Still_Watchings.ToListAsync();
         }
 
-        [HttpGet("watchings/{Id}")]
+        [HttpGet("{Id}")]
         public async Task<ActionResult<WatchingsResult>> getWatching(int Id)
         {
-            return new WatchingsResult { Status = "Done", Watchings = await _context.Still_Watchings.Where(x => x.User_id == Id).ToListAsync() };
+
+            return new WatchingsResult { Status = "Done", Watchings = _ws.Get(Id.ToString()) }; //new WatchingsResult { Status = "Done", Watchings = await _context.Still_Watchings.Where(x => x.User_id == Id).ToListAsync() };
         }
+        [HttpPost]
+        public async Task<ActionResult<Result>> InsertWatching(MongoWatching newWatch)
+        {
+            _ws.Create(newWatch);
+            return new Result { Text = "Done" };
+        }
+
 
         [HttpPost("seek")]
         public async Task<ActionResult<Result>> Seek([Bind("User_Id","Media_Id","Type", "SeekPosition")] NewSeek newSeek)
         {
             //To be used while watching, it dosent return a seek position so that it wont update the seek position if there were two persons using the same account on different devices and watching the same media
+           
             Result res = null;
-            var query = _context.Still_Watchings.Where(x => x.Media_Id == newSeek.Media_Id && x.Type == newSeek.Type && x.User_id == newSeek.User_Id);
 
-            if (query.Count()>0)
+            String resultText;
+            //List<MongoWatching> temp = Vars.still_s;
+
+            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
+            List<MongoWatching> remove_list = Vars.writing ? Vars.removed_temp : Vars.removed;
+
+            MongoWatching ramQuery = list.Where(watching =>watching!=null && watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).SingleOrDefault();
+            if (ramQuery == null)
             {
-                Still_Watching chosen_Still_Watching = query.SingleOrDefault();
-
-                if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+                if (query != null)
                 {
-
-                    _context.Still_Watchings.Remove(chosen_Still_Watching);
-                    await _context.SaveChangesAsync();
-
-                    res=new Result { Text = "Completed" };
+                    ramQuery = query;
                 }
                 else
                 {
-                    chosen_Still_Watching.SeekPosition = newSeek.SeekPosition;
-                    await _context.SaveChangesAsync();
-
-                    res = new Result { Text = "Watching" };
+                    ramQuery = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
+                    if (ramQuery != null)
+                    {
+                        Vars.still_s.Add(ramQuery);
+                        resultText = "Added";
+                    }
+                    else
+                    {
+                        resultText = "Error occurred";
+                    }
                 }
+            }
 
+
+            if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+            {
+                remove_list.Add(ramQuery);
+                list.Remove(ramQuery);
+                _ws.Remove(ramQuery);
+                //var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
+                //if (q.Count() > 0)
+                //    _context.Still_Watchings.Remove(q.SingleOrDefault());
+                resultText = "Completed";
             }
             else
             {
-                _context.Still_Watchings.Add(new Still_Watching { User_id = newSeek.User_Id, Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition });
-                await _context.SaveChangesAsync();
-
-                res = new Result { Text = "Added" };
+                ramQuery.SeekPosition = newSeek.SeekPosition;
+                resultText = "Watching";
             }
 
+            return new Result {Text = resultText };
 
-            return res;
+
         }
 
 
@@ -78,56 +110,91 @@ namespace ContinueWatchingFeature.Controllers
         public  ActionResult<WatchingResult> Check([Bind("User_Id", "Media_Id", "Type", "SeekPosition")] NewSeek newSeek)
         {
             String resultText = "";
-            Still_Watching still_WatchingResult = null;
-            var query = _context.Still_Watchings.Where(x => x.Media_Id == newSeek.Media_Id && x.Type == newSeek.Type && x.User_id == newSeek.User_Id);
 
-            if (query.Count() > 0)
+            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
+
+            MongoWatching ramQuery = list.Where(watching => watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).SingleOrDefault();
+            if (ramQuery == null)
+            {
+                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+                if (query != null)
+                {
+                    ramQuery = query;
+                }
+            }
+            if (ramQuery != null)
             {
                 resultText = "Watching";
-                still_WatchingResult = query.SingleOrDefault();
             }
             else
             {
-                resultText = "notWatching";
+                resultText = "Not Watching";
             }
 
-            WatchingResult watchingResult = new WatchingResult { Status = resultText, Watchings = still_WatchingResult };
+            WatchingResult watchingResult = new WatchingResult { Status = resultText, Watchings = ramQuery };
             return watchingResult;
         }
+
 
         [HttpPost("register")]
         public async Task<ActionResult<WatchingResult>> Register([Bind("User_Id", "Media_Id", "Type", "SeekPosition")] NewSeek newSeek)
         {
-            String resultText = "";
-            var query = _context.Still_Watchings.Where(x => x.Media_Id == newSeek.Media_Id && x.Type == newSeek.Type && x.User_id == newSeek.User_Id);
-
-            if (query.Count() > 0)
+            String resultText;
+            if (!Vars.initeated)
             {
-                Still_Watching chosen_Still_Watching = query.SingleOrDefault();
+                Vars.initeated = true;
+                Thread thread = new Thread(task);
+               // thread.Start();
 
-                if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+            }
+            List<MongoWatching> list = Vars.writing ? Vars.still_s_temp : Vars.still_s;
+            List<MongoWatching> remove_list = Vars.writing ? Vars.removed_temp : Vars.removed;
+
+            List<MongoWatching> ramQuerys = list.Where(watching => watching.User_id == newSeek.User_Id.ToString() && watching.Media_Id == newSeek.Media_Id && watching.Type == newSeek.Type).ToList();
+            MongoWatching ramQuery = null;
+            if (ramQuerys.Count==0)
+            {
+                MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+                if (query != null)
                 {
-                    _context.Still_Watchings.Remove(chosen_Still_Watching);
-                    await _context.SaveChangesAsync();
-
-                    resultText = "Completed";
+                    ramQuery = query;
                 }
                 else
                 {
-                    resultText = "Watching";
+                    ramQuery = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
+                    if (ramQuery != null)
+                    {
+                        list.Add(ramQuery);
+                        resultText = "Added";
+                    }
+                    else
+                    {
+                        resultText = "Error occurred";
+                    }
                 }
-
             }
             else
             {
-                _context.Still_Watchings.Add(new Still_Watching { User_id = newSeek.User_Id, Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition });
-                await _context.SaveChangesAsync();
-
-                resultText = "Added";
+                ramQuery = ramQuerys[0];
             }
 
-            WatchingResult watchingResult = new WatchingResult { Status = resultText, Watchings = await _context.Still_Watchings.Where(x => x.User_id == newSeek.User_Id && x.Media_Id == newSeek.Media_Id && x.Type == newSeek.Type).SingleOrDefaultAsync() };
-            return watchingResult;
+            if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+            {
+                remove_list.Add(ramQuery);
+                list.Remove(ramQuery);
+                var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
+                if (q.Count() > 0)
+                    _context.Still_Watchings.Remove(q.SingleOrDefault());
+                _ws.Remove(ramQuery);
+                resultText = "Completed";
+            }
+            else
+            {
+                resultText = "Watching";
+            }
+
+           return new WatchingResult { Status = resultText, Watchings = ramQuery };
+           
         }
 
 
@@ -149,7 +216,6 @@ namespace ContinueWatchingFeature.Controllers
                 res = new Result { Text = "NotWatching" };
             }
 
-
             return res;
         }
 
@@ -165,6 +231,103 @@ namespace ContinueWatchingFeature.Controllers
                 total = _context.Epsoides.Where(x => x.Id == media_id).SingleOrDefault().Length;
             }
             return current * 100 / total > 90;
+        }
+        [HttpGet("write")]
+        public ActionResult<Result> Write()
+        {
+            // int count = -1;// Vars.still_s.Count;
+            if (Vars.still_s.Count > 0)
+            {
+
+                Console.WriteLine("in");
+                List<Still_Watching> toChange = new List<Still_Watching>();
+                List<MongoWatching> mongoWatchings = Vars.still_s.Where(x => true).ToList(); ;
+                List<MongoWatching> removed = Vars.removed.Where(x => true).ToList(); ;
+
+
+                toChange = mongoWatchings.Select(x => new Still_Watching { Media_Id = x.Media_Id, Type = x.Type, User_id = int.Parse(x.User_id) }).ToList();
+
+                foreach (MongoWatching mongoWatching in removed)
+                {
+                    int u_id = int.Parse(mongoWatching.User_id);
+                    var watch = (from q in _context.Still_Watchings where q.Media_Id == mongoWatching.Media_Id && q.User_id == u_id && q.Type == mongoWatching.Type select q).ToList();
+                    if (watch.Count > 0) _context.Still_Watchings.Remove(watch[0]);
+                }
+
+                _context.Still_Watchings.AddRange(toChange);
+                _context.SaveChanges();
+
+                foreach (MongoWatching mw in mongoWatchings)
+                {
+                    MongoWatching query = _ws.Get(mw.User_id, mw.Media_Id, mw.Type);
+                    if (query != null)
+                    {
+                        query.SeekPosition = mw.SeekPosition;
+                        _ws.Update(query.Id, query);
+                    }
+                    else
+                    {
+                        _ws.Create(mw);
+                    }
+                }
+
+                Vars.still_s.Clear();
+                Vars.removed.Clear();
+                Vars.still_s = Vars.still_s_temp.Where(x => true).ToList();
+                Vars.removed = Vars.removed_temp.Where(x => true).ToList();
+
+            }
+
+            return new Result { Text = "Done"};
+        }
+        private void task()
+        {
+            while (true)
+            {
+                if (Vars.still_s.Count > 0)
+                {
+
+                    Console.WriteLine("in");
+                    List<Still_Watching> toChange = new List<Still_Watching>();
+                    List<MongoWatching> mongoWatchings = Vars.still_s;
+                    List<MongoWatching> removed = Vars.removed;
+
+
+                    toChange = mongoWatchings.Select(x => new Still_Watching { Media_Id = x.Media_Id, Type = x.Type, User_id = int.Parse(x.User_id) }).ToList();
+
+                    foreach (MongoWatching mongoWatching in removed)
+                    {
+                        int u_id = int.Parse(mongoWatching.User_id);
+                        var watch = (from q in _context.Still_Watchings where q.Media_Id == mongoWatching.Media_Id && q.User_id == u_id && q.Type == mongoWatching.Type select q).ToList();
+                        if (watch.Count>0) _context.Still_Watchings.Remove(watch[0]);
+                    }
+
+                    _context.Still_Watchings.AddRange(toChange);
+                    _context.SaveChanges();
+
+                    foreach (MongoWatching mw in mongoWatchings)
+                    {
+                        MongoWatching query = _ws.Get(mw.User_id, mw.Media_Id, mw.Type);
+                        if (query != null)
+                        {
+                            query.SeekPosition = mw.SeekPosition;
+                            _ws.Update(query.Id, query);
+                        }
+                        else
+                        {
+                            _ws.Create(mw);
+                        }
+                    }
+
+                    Vars.still_s.Clear();
+                    Vars.removed.Clear();
+                    Vars.still_s = Vars.still_s_temp.Where(x => true).ToList();
+                    Vars.removed = Vars.removed_temp.Where(x => true).ToList();
+
+                }
+                Thread.Sleep(8000);
+               // Thread.Sleep(6 * 3600000);
+            }
         }
     }
 }

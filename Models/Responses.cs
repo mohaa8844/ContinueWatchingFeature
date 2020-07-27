@@ -12,11 +12,11 @@ namespace ContinueWatchingFeature.Models
     public class WatchingResult
     {
         public String Status { get; set; }
-        public Still_Watching Watchings { get; set; }
+        public MongoWatching Watchings { get; set; }
     }
     public class WatchingsResult
     {
         public String Status { get; set; }
-        public IEnumerable<Still_Watching> Watchings { get; set; }
+        public IEnumerable<MongoWatching> Watchings { get; set; }
     }
 }
