@@ -33,14 +33,14 @@ namespace ContinueWatchingFeature
         public void ConfigureServices(IServiceCollection services)
         {
 
-            services.Configure<IISServerOptions>(options =>
-            {
-                options.AllowSynchronousIO = true;
-            });
-            services.Configure<KestrelServerOptions>(options =>
-            {
-                options.AllowSynchronousIO = true;
-            });
+            //services.Configure<IISServerOptions>(options =>
+            //{
+            //    options.AllowSynchronousIO = true;
+            //});
+            //services.Configure<KestrelServerOptions>(options =>
+            //{
+            //    options.AllowSynchronousIO = true;
+            //});
 
             services.AddControllersWithViews();
             services.Configure<watchingsDatabaseSettings>(Configuration.GetSection(nameof(watchingsDatabaseSettings)));
@@ -49,11 +49,6 @@ namespace ContinueWatchingFeature
             //services.AddTransient<MySqlConnection>(_ => new MySqlConnection(Configuration["ConnectionStrings:Default"]));
 
             services.AddSingleton<WatchingsService>();
-
-
-            services.AddScoped<IDependencyResolver>(s => new FuncDependencyResolver(s.GetRequiredService));
-            services.AddScoped<GraphSchema>();
-            services.AddGraphQL().AddGraphTypes(ServiceLifetime.Scoped);
 
 
 
@@ -72,8 +67,6 @@ namespace ContinueWatchingFeature
 
             app.UseHttpsRedirection();
             app.UseRouting();
-
-            app.UseGraphQL<GraphSchema>("/queries");
 
             app.UseEndpoints(endpoints =>
             {
