@@ -13,9 +13,15 @@ using Microsoft.Extensions.Configuration;
 using ContinueWatchingFeature.Models;
 using Microsoft.Extensions.Options;
 using ContinueWatchingFeature.Services;
+using GraphQL.Server;
+using GraphQL;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace ContinueWatchingFeature
 {
+   
     public class Startup
     {
         public Startup(IConfiguration configuration)
@@ -26,6 +32,16 @@ namespace ContinueWatchingFeature
         public IConfiguration Configuration { get; }
         public void ConfigureServices(IServiceCollection services)
         {
+
+            services.Configure<IISServerOptions>(options =>
+            {
+                options.AllowSynchronousIO = true;
+            });
+            services.Configure<KestrelServerOptions>(options =>
+            {
+                options.AllowSynchronousIO = true;
+            });
+
             services.AddControllersWithViews();
             services.Configure<watchingsDatabaseSettings>(Configuration.GetSection(nameof(watchingsDatabaseSettings)));
 
@@ -34,10 +50,16 @@ namespace ContinueWatchingFeature
 
             services.AddSingleton<WatchingsService>();
 
+
+            services.AddScoped<IDependencyResolver>(s => new FuncDependencyResolver(s.GetRequiredService));
+            services.AddScoped<GraphSchema>();
+            services.AddGraphQL().AddGraphTypes(ServiceLifetime.Scoped);
+
+
+
             //services.AddDbContextPool<ContinueWatchingFeatureContext>(options => options.UseMySql(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddMvc();
-            services.AddDbContext<ContinueWatchingFeatureContext>(options =>
-                    options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
+            //services.AddMvc();
+            services.AddDbContext<ContinueWatchingFeatureContext>(options =>options.UseSqlServer(Configuration.GetConnectionString("ContinueWatchingFeatureContext")));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -50,6 +72,8 @@ namespace ContinueWatchingFeature
 
             app.UseHttpsRedirection();
             app.UseRouting();
+
+            app.UseGraphQL<GraphSchema>("/queries");
 
             app.UseEndpoints(endpoints =>
             {
