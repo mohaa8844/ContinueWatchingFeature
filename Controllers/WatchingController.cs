@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using ContinueWatchingFeature.Services;
 using System.Threading;
 using System.Security.Cryptography.X509Certificates;
+using System.Diagnostics;
 
 namespace ContinueWatchingFeature.Controllers
 {
@@ -56,25 +57,40 @@ namespace ContinueWatchingFeature.Controllers
 
             String resultText;
 
+            //Stopwatch t_sw = new Stopwatch();
+            //t_sw.Start();
             MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+            //t_sw.Stop();
+            //Console.WriteLine("seek read takes: " + t_sw.ElapsedMilliseconds + " ms");
             if (query == null)
             {
                 query = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
 
+                //Stopwatch s_sw = new Stopwatch();
+                //s_sw.Start();
                 _ws.Create(query);
+                //s_sw.Stop();
+                //Console.WriteLine("seek create takes: " + s_sw.ElapsedMilliseconds + " ms");
                 resultText = "Added";
-                    
-            }
 
-            if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
-            {
-                _ws.Remove(query);
-                resultText = "Completed";
             }
             else
             {
-                query.SeekPosition = newSeek.SeekPosition;
-                resultText = "Watching";
+
+                if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+                {
+                    //Stopwatch s_sw = new Stopwatch();
+                    //s_sw.Start();
+                    _ws.Remove(query);
+                    //s_sw.Stop();
+                    //Console.WriteLine("seek remove takes: " + s_sw.ElapsedMilliseconds + " ms");
+                    resultText = "Completed";
+                }
+                else
+                {
+                    query.SeekPosition = newSeek.SeekPosition;
+                    resultText = "Watching";
+                }
             }
 
             return new Result {Text = resultText };
@@ -89,9 +105,13 @@ namespace ContinueWatchingFeature.Controllers
             String resultText = "";
 
 
+            //Stopwatch t_sw = new Stopwatch();
+            //t_sw.Start();
             MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
-                
-            
+            //t_sw.Stop();
+            //Console.WriteLine("check read takes: " + t_sw.ElapsedMilliseconds + " ms");
+
+
             if (query != null)
             {
                 resultText = "Watching";
@@ -110,34 +130,44 @@ namespace ContinueWatchingFeature.Controllers
         public async Task<ActionResult<WatchingResult>> Register([Bind("User_Id", "Media_Id", "Type", "SeekPosition")] NewSeek newSeek)
         {
             String resultText;
-            if (!Vars.initeated)
-            {
-                Vars.initeated = true;
-                Thread thread = new Thread(task);
-               // thread.Start();
-
-            }
+            //Stopwatch t_sw = new Stopwatch();
+            //t_sw.Start();
             MongoWatching query = _ws.Get(newSeek.User_Id.ToString(), newSeek.Media_Id, newSeek.Type);
+            //t_sw.Stop();
+            //Console.WriteLine("register read takes: " + t_sw.ElapsedMilliseconds + " ms");
             if (query == null)
             {
                 query = new MongoWatching { User_id = newSeek.User_Id.ToString(), Media_Id = newSeek.Media_Id, Type = newSeek.Type, SeekPosition = newSeek.SeekPosition };
+
+                //Stopwatch s_sw = new Stopwatch();
+                //s_sw.Start();
                 _ws.Create(query);
+                //s_sw.Stop();
+                //Console.WriteLine("register create takes: " + s_sw.ElapsedMilliseconds + " ms");
                 resultText = "Added";
-                   
-                
-            }
-           
-            if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
-            {
-                var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
-                if (q.Count() > 0)
-                    _context.Still_Watchings.Remove(q.SingleOrDefault());
-                _ws.Remove(query);
-                resultText = "Completed";
+
+
             }
             else
             {
-                resultText = "Watching";
+
+                if (IsCompleted(newSeek.SeekPosition, newSeek.Media_Id, newSeek.Type))
+                {
+                    //var q = from qu in _context.Still_Watchings where qu.User_id == newSeek.User_Id && qu.Media_Id == newSeek.Media_Id && qu.Type == newSeek.Type select qu;
+                    //if (q.Count() > 0)
+                    //    _context.Still_Watchings.Remove(q.SingleOrDefault());
+
+                    //Stopwatch s_sw = new Stopwatch();
+                    //s_sw.Start();
+                    _ws.Remove(query);
+                    //s_sw.Stop();
+                    //Console.WriteLine("register remove takes: " + s_sw.ElapsedMilliseconds + " ms");
+                    resultText = "Completed";
+                }
+                else
+                {
+                    resultText = "Watching";
+                }
             }
 
            return new WatchingResult { Status = resultText, Watchings = query };
@@ -169,62 +199,85 @@ namespace ContinueWatchingFeature.Controllers
 
         private bool IsCompleted(int current,int media_id,int type)
         {
+
+            //Stopwatch s_sw = new Stopwatch();
+            //s_sw.Start();
             int total;
             if (type == 0)
             {
-                total = _context.Movies.Where(x => x.Id == media_id).SingleOrDefault().Length;
+                total =Vars.moviesLengths.Where(x => x.Id == media_id).SingleOrDefault().Length;
             }
             else
             {
-                total = _context.Epsoides.Where(x => x.Id == media_id).SingleOrDefault().Length;
+                total = Vars.epsoidesLengths.Where(x => x.Id == media_id).SingleOrDefault().Length;
             }
-            return current * 100 / total > 90;
+            bool r= current * 100 / total > 90;
+
+            //s_sw.Stop();
+            //Console.WriteLine("is completed took " + s_sw.ElapsedMilliseconds+" ms");
+            return r;
         }
         [HttpGet("write")]
         public ActionResult<Result> Write()
         {
-            // int count = -1;// Vars.still_s.Count;
-            if (Vars.still_s.Count > 0)
+
+             if (!Vars.initeated)
             {
+                Vars.initeated = true;
+                Vars.moviesLengths =  _context.Movies.Select(x=>new mL { Id = x.Id, Length = x.Length }).ToList();
 
-                Console.WriteLine("in");
-                List<Still_Watching> toChange = new List<Still_Watching>();
-                List<MongoWatching> mongoWatchings = Vars.still_s.Where(x => true).ToList(); ;
-                List<MongoWatching> removed = Vars.removed.Where(x => true).ToList(); ;
-
-
-                toChange = mongoWatchings.Select(x => new Still_Watching { Media_Id = x.Media_Id, Type = x.Type, User_id = int.Parse(x.User_id) }).ToList();
-
-                foreach (MongoWatching mongoWatching in removed)
-                {
-                    int u_id = int.Parse(mongoWatching.User_id);
-                    var watch = (from q in _context.Still_Watchings where q.Media_Id == mongoWatching.Media_Id && q.User_id == u_id && q.Type == mongoWatching.Type select q).ToList();
-                    if (watch.Count > 0) _context.Still_Watchings.Remove(watch[0]);
-                }
-
-                _context.Still_Watchings.AddRange(toChange);
-                _context.SaveChanges();
-
-                foreach (MongoWatching mw in mongoWatchings)
-                {
-                    MongoWatching query = _ws.Get(mw.User_id, mw.Media_Id, mw.Type);
-                    if (query != null)
-                    {
-                        query.SeekPosition = mw.SeekPosition;
-                        _ws.Update(query.Id, query);
-                    }
-                    else
-                    {
-                        _ws.Create(mw);
-                    }
-                }
-
-                Vars.still_s.Clear();
-                Vars.removed.Clear();
-                Vars.still_s = Vars.still_s_temp.Where(x => true).ToList();
-                Vars.removed = Vars.removed_temp.Where(x => true).ToList();
+                Vars.epsoidesLengths =  _context.Epsoides.Select(x => new mL { Id = x.Id, Length = x.Length }).ToList();
+                // Thread thread = new Thread(task);
+                // thread.Start();
 
             }
+
+
+
+
+
+            // int count = -1;// Vars.still_s.Count;
+            //if (Vars.still_s.Count > 0)
+            //{
+
+            //    Console.WriteLine("in");
+            //    List<Still_Watching> toChange = new List<Still_Watching>();
+            //    List<MongoWatching> mongoWatchings = Vars.still_s.Where(x => true).ToList(); ;
+            //    List<MongoWatching> removed = Vars.removed.Where(x => true).ToList(); ;
+
+
+            //    toChange = mongoWatchings.Select(x => new Still_Watching { Media_Id = x.Media_Id, Type = x.Type, User_id = int.Parse(x.User_id) }).ToList();
+
+            //    foreach (MongoWatching mongoWatching in removed)
+            //    {
+            //        int u_id = int.Parse(mongoWatching.User_id);
+            //        var watch = (from q in _context.Still_Watchings where q.Media_Id == mongoWatching.Media_Id && q.User_id == u_id && q.Type == mongoWatching.Type select q).ToList();
+            //        if (watch.Count > 0) _context.Still_Watchings.Remove(watch[0]);
+            //    }
+
+            //    _context.Still_Watchings.AddRange(toChange);
+            //    _context.SaveChanges();
+
+            //    foreach (MongoWatching mw in mongoWatchings)
+            //    {
+            //        MongoWatching query = _ws.Get(mw.User_id, mw.Media_Id, mw.Type);
+            //        if (query != null)
+            //        {
+            //            query.SeekPosition = mw.SeekPosition;
+            //            _ws.Update(query.Id, query);
+            //        }
+            //        else
+            //        {
+            //            _ws.Create(mw);
+            //        }
+            //    }
+
+            //    Vars.still_s.Clear();
+            //    Vars.removed.Clear();
+            //    Vars.still_s = Vars.still_s_temp.Where(x => true).ToList();
+            //    Vars.removed = Vars.removed_temp.Where(x => true).ToList();
+
+            //}
 
             return new Result { Text = "Done"};
         }

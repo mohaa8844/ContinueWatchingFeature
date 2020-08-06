@@ -13,8 +13,6 @@ using Microsoft.Extensions.Configuration;
 using ContinueWatchingFeature.Models;
 using Microsoft.Extensions.Options;
 using ContinueWatchingFeature.Services;
-using GraphQL.Server;
-using GraphQL;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
